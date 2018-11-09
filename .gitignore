@@ -117,3 +117,5 @@ $RECYCLE.BIN/
 packrat/lib*/
 packrat/src/
 .Rproj.user
+
+data/
