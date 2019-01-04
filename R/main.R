@@ -20,7 +20,7 @@ library(caret)
 
 variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug")
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
-target = "Cocaine"
+#target = "Cocaine"
 
 buildDataset = function() {
   if (!file.exists(DATASET_RAW)) {
@@ -90,11 +90,11 @@ normalize = function(dataset) {
 }
 
 # only select the columns defined in the variables array
-stripDataset = function(dataset) {
+stripDataset = function(dataset, target) {
   logging.debug("Selecting columns")
   dataset = dataset %>%
-    dplyr::select(!!variables, !!target) %>%
-    dplyr::rename(Target = !!target)
+    dplyr::select(!!variables, target) %>%
+    dplyr::rename(Target = target)
   logging.debug("Columns selected")
 
   return(dataset)
@@ -174,8 +174,8 @@ learn = function(dataset, MODEL) {
     }
 
     if (MODEL == "base") {
-      prediction = rep(1, nrow(test))
-      prediction[1] = 0
+      prediction = rep(0, nrow(test))
+      prediction[1] = 1
       prediction = factor(prediction)
     }
 
@@ -203,17 +203,20 @@ learn = function(dataset, MODEL) {
 
 }
 
-main = function(model) {
+main = function() {
   dataset <<- loadDataset()
-  stripped_dataset = stripDataset(dataset)
   methods = c("base", "nn", "nbayes", "svm", "rforest", "dtree")
-  for (method in methods) {
-    tryCatch({
-      learn(stripped_dataset, method)
-    }, error = function(e) {
-      print(e)
-      logging.error(paste("Can't complete training with method", method))
-    })
-
+  drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Chocolate", "Nicotine", "Caffeine", "Alcohol")
+  for (drug in drugs) {
+    cat(paste("\nDrug: ", drug))
+    stripped_dataset = stripDataset(dataset, drug)
+    for (method in methods){
+      tryCatch({
+        learn(stripped_dataset, method)
+      }, error = function(e) {
+        print(e)
+        logging.error(paste("Can't complete training with method", method))
+      })
+    }
   }
 }
