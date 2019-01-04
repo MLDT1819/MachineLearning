@@ -12,7 +12,7 @@ logging.log = function(text, level = "INFO") {
   arg_level_number = logging_levels[[ level ]]
   config_level_number = logging_levels[[ LOGGING_LEVEL ]]
   if (arg_level_number >= config_level_number) {
-    print(paste(level, text))
+    print(paste(paste("[", level, "]", sep=""), text))
   }
 }
 

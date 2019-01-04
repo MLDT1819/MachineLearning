@@ -118,4 +118,4 @@ packrat/lib*/
 packrat/src/
 .Rproj.user
 
-data/
+notebooks/*.html

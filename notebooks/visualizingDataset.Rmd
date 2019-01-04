@@ -1,0 +1,81 @@
+---
+title: "Esplorazione Dataset: drug usage classification"
+output: html_notebook
+---
+
+```{r setup}
+rootDir = dirname(getwd())
+knitr::opts_knit$set(root.dir = normalizePath(rootDir))
+```
+
+```{r setup include=FALSE}
+source("R/main.R")
+library(ggplot2)
+dataset = loadDataset()
+```
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+ggplot(dataset, aes(x=Age)) +
+  geom_bar(fill="#4b869c") +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.3) + 
+  scale_x_discrete(labels = c('18-24','25-34','35-44', '45-54', '55-65', '65+')) + 
+  labs(title = "Age distribution", y="Count")
+```
+
+```{r}
+ggplot(dataset, aes(x=Gender)) +
+  geom_bar(fill=c("#f295ec", "#4edaf6")) +
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5)) + 
+  labs(title = "Gender distribution", y = "Count")
+```
+
+```{r}
+ggplot(dataset, aes(x=Age, fill=Gender)) +
+  scale_fill_manual(values = c("#f295ec", "#4edaf6")) + 
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5)) + 
+  labs(title = "Gender distribution by Age", y = "Count")
+```
+
+```{r}
+ggplot(dataset, aes(x=Education)) +
+  geom_bar(fill="#4b869c") +
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5)) + 
+  scale_x_discrete(labels = c('Left school\n<16Y','Left school\nat 16Y','Left school\nat 17Y', 'Left school\nat 18Y', 'Some uni\nbut no degree', 'Professional\nCertificate', 'Bachelor\nDegree', 'Master\nDegree', 'Doctorate')) + 
+  labs(title = "Education Distribution", y = "Count", x = "Education Level")
+```
+
+```{r}
+ggplot(dataset, aes(x=NOfDrugsUsed)) +
+  geom_bar() +
+  scale_x_continuous(breaks=0:15)
+```
+
+```{r}
+ggplot(dataset, aes(x=UsedAnyDrug)) +
+  geom_bar() +
+  scale_x_continuous(breaks=0:15)
+```
+
+Aggiungere anche per ogni droga.
+
+
+```{r}
+ggplot(dataset) +
+  geom_density(aes(dataset$SensationSeeking, fill=factor(Cocaine)), alpha=0.3)
+```
+
+```{r}
+ggplot(dataset) +
+  geom_density(aes(EScore, fill=Gender), alpha=0.3)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

@@ -4,7 +4,7 @@ downloadDataset = function() {
 }
 
 setupPackages = function() {
-  packages = c("readr", "ggplot2")
+  packages = c("readr", "ggplot2", "neuralnet", "dplyr", "tidyr", "viridis", "here", "e1071", "rpart", "rattle", "randomForest", "caret")
   if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
     install.packages(setdiff(packages, rownames(installed.packages())))
   }
@@ -12,5 +12,5 @@ setupPackages = function() {
 
 setup = function() {
   setupPackages()
-  downloadDataset()
+  #downloadDataset()
 }
