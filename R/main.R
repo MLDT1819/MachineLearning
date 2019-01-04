@@ -18,7 +18,7 @@ library(ggplot2)
 
 library(caret)
 
-variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug", "NOfDrugsUsed")
+variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug")
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
 target = "Cocaine"
 
@@ -130,7 +130,6 @@ learn = function(dataset, MODEL) {
   nFolds = 1
   totalAccuracy = 0
   for(i in 1:nFolds) {
-
     splitted = splitData(dataset)
     train = splitted$train
     test = splitted$test
@@ -157,7 +156,7 @@ learn = function(dataset, MODEL) {
 
     if (MODEL == "dtree") {
       model_tree = rpart::rpart(formula, data=train, method="class")
-      rattle::fancyRpartPlot(model_tree)
+      #rattle::fancyRpartPlot(model_tree)
       #plot(model_tree)
       #text(model_tree)
       prediction = predict(model_tree, test, type="class")
@@ -165,7 +164,7 @@ learn = function(dataset, MODEL) {
 
     if (MODEL == "rforest") {
       model_rforest = randomForest(formula, data = train, importance = TRUE)
-      print(model_rforest)
+      #print(model_rforest)
       prediction = predict(model_rforest, test, type="class")
     }
 
@@ -174,15 +173,21 @@ learn = function(dataset, MODEL) {
       prediction = predict(model_nbayes, test, type="class")
     }
 
+    if (MODEL == "base") {
+      prediction = rep(1, nrow(test))
+      prediction[1] = 0
+      prediction = factor(prediction)
+    }
+
     # build confusion matrix
     comparison = data.frame(target=target, prediction=prediction)
-    if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes") comparison = sapply(comparison, round, digits=0)
+    if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes" && MODEL != "base") comparison = sapply(comparison, round, digits=0)
     comparison = data.frame(comparison)
 
     #logging.info(paste("Fold:", i))
     confM = confusionMatrix(table(comparison$prediction, comparison$target), mode = "prec_recall")
     totalAccuracy = totalAccuracy + confM$overall['Accuracy']
-    #print(confM)
+    #print(str(confM))
     confusionDF = as.data.frame(table(comparison$prediction, comparison$target))
     # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
     #   geom_tile(aes(fill=Freq)) +
@@ -201,5 +206,14 @@ learn = function(dataset, MODEL) {
 main = function(model) {
   dataset <<- loadDataset()
   stripped_dataset = stripDataset(dataset)
-  learn(stripped_dataset, model)
+  methods = c("base", "nn", "nbayes", "svm", "rforest", "dtree")
+  for (method in methods) {
+    tryCatch({
+      learn(stripped_dataset, method)
+    }, error = function(e) {
+      print(e)
+      logging.error(paste("Can't complete training with method", method))
+    })
+
+  }
 }
