@@ -137,7 +137,7 @@ learn = function(dataset) {
       nn <- neuralnet(
         formula,
         data=train,
-        hidden = c(floor(length(variables)/3)+1,2,1),
+        hidden = c(floor(length(variables)/3)),
         linear.output=F
       )
       prediction = compute(nn, test)
