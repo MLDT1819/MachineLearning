@@ -18,9 +18,7 @@ library(ggplot2)
 
 library(caret)
 
-MODEL = "nn"
-
-variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug")
+variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug", "NOfDrugsUsed")
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
 target = "Cocaine"
 
@@ -33,6 +31,7 @@ buildDataset = function() {
   dataset = readr::read_csv(DATASET_RAW, col_names = TRUE)
   logging.debug("Raw dataset loaded")
 
+  # split the drug usage columns since they are grouped together
   dataset = dataset %>%
     separate(SubstanceUsage,
              c("Alcohol", "Amphet", "Amyl", "Benzos", "Caffeine", "Cannabis", "Chocolate", "Cocaine", "Crack", "Ecstasy", "Heroin", "Ketamine", "Legal", "LSD", "Meth", "Mushrooms", "Nicotine", "Semer", "VSA"),
@@ -84,11 +83,13 @@ normalize = function(dataset) {
   indx <- sapply(dataset, is.factor)
   dataset[indx] = lapply(dataset[indx], function(x) as.numeric(x))
 
+  # normalize between -1 and 1 with average 0 e std 1
   dataset[seq(1, ncol(dataset)-1)] = lapply(dataset[seq(1, ncol(dataset)-1)], scale)
 
   return(dataset)
 }
 
+# only select the columns defined in the variables array
 stripDataset = function(dataset) {
   logging.debug("Selecting columns")
   dataset = dataset %>%
@@ -99,6 +100,7 @@ stripDataset = function(dataset) {
   return(dataset)
 }
 
+# split dataset in two parts p% train and (1-p)% test
 splitData = function(dataset, p = 0.7) {
   sample = sample.int(n = nrow(dataset), size = floor(p * nrow(dataset)), replace = F)
   train = dataset[sample, ]
@@ -107,24 +109,27 @@ splitData = function(dataset, p = 0.7) {
   return(list(train=train, test=test))
 }
 
-learn = function(dataset) {
+learn = function(dataset, MODEL) {
   logging.info(paste("Learning with method", MODEL))
+
+  # build formula as Target=v1+v2+v3
   formula = reformulate(variables, response = 'Target')
 
-  nFolds = 10
+
+  # dataset needs to be normalized for nn and svm
+  if (MODEL == "nn" || MODEL == "svm") {
+    dataset = normalize(dataset)
+  }
+
+  # factorize the target so these model can work
+  if (MODEL == "rforest" || MODEL == "dtree" || MODEL == "nbayes") {
+    dataset$Target <- as.factor(dataset$Target)
+    # TODO: bin the data
+  }
+
+  nFolds = 1
   totalAccuracy = 0
   for(i in 1:nFolds) {
-
-    # dataset needs to be normalized for nn and svm
-    if (MODEL == "nn" || MODEL == "svm") {
-      dataset = normalize(dataset)
-    }
-
-    # factorize the target so these model can work
-    if (MODEL == "rforest" || MODEL == "dtree" || MODEL == "nbayes") {
-      dataset$Target <- as.factor(dataset$Target)
-      # TODO: bin the data
-    }
 
     splitted = splitData(dataset)
     train = splitted$train
@@ -137,8 +142,8 @@ learn = function(dataset) {
       nn <- neuralnet(
         formula,
         data=train,
-        hidden = c(floor(length(variables)/3)),
-        linear.output=F
+        hidden = c(ceiling(length(variables)/3)),
+        linear.output=FALSE
       )
       prediction = compute(nn, test)
       prediction = prediction$net.result
@@ -153,8 +158,8 @@ learn = function(dataset) {
     if (MODEL == "dtree") {
       model_tree = rpart::rpart(formula, data=train, method="class")
       rattle::fancyRpartPlot(model_tree)
-      plot(model_tree)
-      text(model_tree)
+      #plot(model_tree)
+      #text(model_tree)
       prediction = predict(model_tree, test, type="class")
     }
 
@@ -169,14 +174,15 @@ learn = function(dataset) {
       prediction = predict(model_nbayes, test, type="class")
     }
 
+    # build confusion matrix
     comparison = data.frame(target=target, prediction=prediction)
     if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes") comparison = sapply(comparison, round, digits=0)
     comparison = data.frame(comparison)
 
-    logging.info(paste("Fold:", i))
-    confM = confusionMatrix(table(comparison$prediction, comparison$target))
+    #logging.info(paste("Fold:", i))
+    confM = confusionMatrix(table(comparison$prediction, comparison$target), mode = "prec_recall")
     totalAccuracy = totalAccuracy + confM$overall['Accuracy']
-
+    #print(confM)
     confusionDF = as.data.frame(table(comparison$prediction, comparison$target))
     # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
     #   geom_tile(aes(fill=Freq)) +
@@ -192,8 +198,8 @@ learn = function(dataset) {
 
 }
 
-main = function() {
+main = function(model) {
   dataset <<- loadDataset()
   stripped_dataset = stripDataset(dataset)
-  learn(stripped_dataset)
+  learn(stripped_dataset, model)
 }
