@@ -130,6 +130,9 @@ learn = function(dataset, MODEL) {
 
   nFolds = 1
   totalAccuracy = 0
+  totalPrecision = 0
+  totalRecall = 0
+  totalF1 = 0
   for(i in 1:nFolds) {
     splitted = splitData(dataset)
     train = splitted$train
@@ -193,9 +196,13 @@ learn = function(dataset, MODEL) {
     #logging.info(paste("Fold:", i))
     confM = confusionMatrix(table(comparison$prediction, comparison$target), mode = "prec_recall")
     totalAccuracy = totalAccuracy + confM$overall['Accuracy']
-    #print(str(confM))
+    totalPrecision = totalPrecision + confM$byClass['Precision']
+    totalRecall = totalRecall + confM$byClass['Recall']
+    totalF1 = totalF1 + confM$byClass['F1']
+
+    print(confM)
     confusionDF = as.data.frame(table(comparison$prediction, comparison$target))
-    print(confusionDF)
+    #print(confusionDF)
     # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
     #   geom_tile(aes(fill=Freq)) +
     #   scale_x_discrete(name="Actual Class") +
@@ -207,6 +214,9 @@ learn = function(dataset, MODEL) {
     # show(p)
   }
   print(paste("Average accuracy: ", totalAccuracy/nFolds))
+  print(paste("Average Precision: ", totalPrecision/nFolds))
+  print(paste("Average Recall: ", totalRecall/nFolds))
+  print(paste("F-measure: ", totalF1/nFolds))
 }
 
 main = function() {
