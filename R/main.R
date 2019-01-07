@@ -15,6 +15,7 @@ library(randomForest)
 
 library(rattle)
 library(ggplot2)
+library(pROC)
 
 library(caret)
 
@@ -179,6 +180,11 @@ learn = function(dataset, MODEL) {
       prediction = factor(prediction)
     }
 
+    # plot the roc curve and print the area under curve
+    roc_obj <- roc(target, prediction)
+    print(auc(roc_obj))
+    plot.roc(roc_obj, add=FALSE, reuse.auc=TRUE, axes=TRUE, legacy.axes=FALSE)
+
     # build confusion matrix
     comparison = data.frame(target=target, prediction=prediction)
     if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes" && MODEL != "base") comparison = sapply(comparison, round, digits=0)
@@ -189,6 +195,7 @@ learn = function(dataset, MODEL) {
     totalAccuracy = totalAccuracy + confM$overall['Accuracy']
     #print(str(confM))
     confusionDF = as.data.frame(table(comparison$prediction, comparison$target))
+    print(confusionDF)
     # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
     #   geom_tile(aes(fill=Freq)) +
     #   scale_x_discrete(name="Actual Class") +
@@ -200,23 +207,25 @@ learn = function(dataset, MODEL) {
     # show(p)
   }
   print(paste("Average accuracy: ", totalAccuracy/nFolds))
-
 }
 
 main = function() {
   dataset <<- loadDataset()
   methods = c("base", "nn", "nbayes", "svm", "rforest", "dtree")
   drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Chocolate", "Nicotine", "Caffeine", "Alcohol")
-  for (drug in drugs) {
-    cat(paste("\nDrug: ", drug))
-    stripped_dataset = stripDataset(dataset, drug)
-    for (method in methods){
-      tryCatch({
-        learn(stripped_dataset, method)
-      }, error = function(e) {
-        print(e)
-        logging.error(paste("Can't complete training with method", method))
-      })
-    }
-  }
+
+  learn(stripDataset(dataset, "Cannabis"), "svm")
+
+  # for (drug in drugs) {
+  #   cat(paste("\nDrug: ", drug))
+  #   stripped_dataset = stripDataset(dataset, drug)
+  #   for (method in methods){
+  #     tryCatch({
+  #       learn(stripped_dataset, method)
+  #     }, error = function(e) {
+  #       print(e)
+  #       logging.error(paste("Can't complete training with method ", method))
+  #     })
+  #   }
+  # }
 }
