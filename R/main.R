@@ -43,7 +43,7 @@ buildDataset = function() {
   logging.info("Clean Dataset written")
 }
 
-loadDataset = function() {
+loadDataset = function(target) {
   if (!file.exists(DATASET)) {
     logging.info("Clean dataset not found, building from raw...")
     buildDataset()
@@ -220,22 +220,25 @@ learn = function(dataset, MODEL) {
 }
 
 main = function() {
-  dataset <<- loadDataset()
   methods = c("base", "nn", "nbayes", "svm", "rforest", "dtree")
   drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Chocolate", "Nicotine", "Caffeine", "Alcohol")
+  for (drug in drugs) {
+    cat(paste("\nDrug: ", drug))
+    dataset <<- loadDataset(drug)
+    stripped_dataset = stripDataset(dataset, drug)
+    for (method in methods){
+      tryCatch({
+        learn(stripped_dataset, method)
+      }, error = function(e) {
+        print(e)
+        logging.error(paste("Can't complete training with method", method))
+      })
+    }
+  }
+}
 
-  learn(stripDataset(dataset, "Cannabis"), "svm")
-
-  # for (drug in drugs) {
-  #   cat(paste("\nDrug: ", drug))
-  #   stripped_dataset = stripDataset(dataset, drug)
-  #   for (method in methods){
-  #     tryCatch({
-  #       learn(stripped_dataset, method)
-  #     }, error = function(e) {
-  #       print(e)
-  #       logging.error(paste("Can't complete training with method ", method))
-  #     })
-  #   }
-  # }
+main = function(target, method) {
+  dataset <<- loadDataset(target)
+  stripped_dataset <<- stripDataset(dataset, target)
+  learn(stripped_dataset, method)
 }
