@@ -208,7 +208,8 @@ gar.fun<-function(out.var,mod.in,bar.plot=T,struct=NULL,x.lab=NULL,
                                 colour = rel.imp)) +
     geom_bar(stat = 'identity') +
     scale_x_discrete(element_blank()) +
-    scale_y_continuous(y.names)
+    scale_y_continuous(y.names) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
   return(out_plo)
 
