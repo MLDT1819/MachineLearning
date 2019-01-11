@@ -15,9 +15,9 @@ library(randomForest)
 
 library(rattle)
 library(ggplot2)
-library(pROC)
 
 library(caret)
+library(pROC)
 
 variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity", "UsedAnyOtherDrug")
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
@@ -184,9 +184,9 @@ learn = function(dataset, MODEL) {
     }
 
     # plot the roc curve and print the area under curve
-    roc_obj <- roc(target, prediction)
+    roc_obj <- roc(target, as.numeric(prediction))
     print(auc(roc_obj))
-    plot.roc(roc_obj, add=FALSE, reuse.auc=TRUE, axes=TRUE, legacy.axes=FALSE)
+    plot(ggroc(roc_obj))
 
     # build confusion matrix
     comparison = data.frame(target=target, prediction=prediction)
