@@ -142,7 +142,7 @@ learn = function(dataset, MODEL, balance) {
     # TODO: bin the data
   }
 
-  nFolds = 10
+  nFolds = 1
   totalAccuracy = 0
   totalPrecision = 0
   totalRecall = 0
