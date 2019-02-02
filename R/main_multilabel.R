@@ -7,7 +7,6 @@ set.seed(1)
 library(readr)
 library(tidyr)
 library(dplyr)
-library(rjson)
 
 library(neuralnet)
 library(e1071)
@@ -20,10 +19,7 @@ library(ggplot2)
 library(caret)
 library(pROC)
 
-variables = c("Age", "Gender", "Education", "CountryPP", "EstimatedIncome",
-              "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity",
-              "CannabisPrice", "CrackPrice", "CocainePrice", "EcstasyPrice"
-              )
+variables = c("Age", "Gender", "Education", "Country", "CountryPP", "EstimatedIncome", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
 #target = "Cocaine"
 
@@ -73,34 +69,23 @@ loadDataset = function(target) {
   logging.debug("Columns factorized")
 
   logging.info("Feature engineering")
-  drugs = c("Amphet","Amyl","Benzos","Cannabis","Cocaine","Crack","Ecstasy","Heroin","Ketamine","LSD","Meth","Mushrooms","Semer","VSA")
-  dataset$NOfDrugsUsed = rowSums(dataset[,drugs])
-  dataset$NOfOtherDrugsUsed = rowSums(dataset[,drugs[drugs!=target]])
-  dataset$UsedAnyDrug = ifelse(dataset$NOfDrugsUsed > 0, 1, 0)
-  dataset$UsedAnyOtherDrug = ifelse(dataset$NOfOtherDrugsUsed > 0, 1, 0)
-
-  drugPrices <<- fromJSON(file="data/drugprices.json")
-
-  dataset$CannabisPrice = as.numeric(drugPrices[["Cannabis"]][dataset$Country])
-  dataset$CocainePrice = as.numeric(drugPrices[["Cocaine"]][dataset$Country])
-  dataset$CrackPrice = as.numeric(drugPrices[["Crack"]][dataset$Country])
-  dataset$EcstasyPrice = as.numeric(drugPrices[["Ecstasy"]][dataset$Country])
-
-  engds <<- dataset
-
+  #drugs = c("Amphet","Amyl","Benzos","Cannabis","Cocaine","Crack","Ecstasy","Heroin","Ketamine","LSD","Meth","Mushrooms","Semer","VSA")
+  #dataset$NOfDrugsUsed = rowSums(dataset[,drugs])
+  #dataset$NOfOtherDrugsUsed = rowSums(dataset[,drugs[drugs!=target]])
+  #dataset$UsedAnyDrug = ifelse(dataset$NOfDrugsUsed > 0, 1, 0)
+  #dataset$UsedAnyOtherDrug = ifelse(dataset$NOfOtherDrugsUsed > 0, 1, 0)
   logging.debug("Dataset engineered")
 
   return(dataset)
 }
 
-normalize = function(dataset) {
+normalize = function(dataset, target) {
   # factor to numerics
-  nset <<- dataset
   indx <- sapply(dataset, is.factor)
   dataset[indx] = lapply(dataset[indx], function(x) as.numeric(x))
 
   # normalize between -1 and 1 with average 0 e std 1
-  dataset[seq(1, ncol(dataset)-1)] = lapply(dataset[seq(1, ncol(dataset)-1)], scale)
+  dataset[, !names(dataset) %in% target] = lapply(dataset[, !names(dataset) %in% target], scale)
 
   return(dataset)
 }
@@ -109,8 +94,8 @@ normalize = function(dataset) {
 stripDataset = function(dataset, target) {
   logging.debug("Selecting columns")
   dataset = dataset %>%
-    dplyr::select(!!variables, target) %>%
-    dplyr::rename(Target = target)
+    dplyr::select(!!variables, target) # %>%
+    #dplyr::rename(Target = target)
   logging.debug("Columns selected")
 
   return(dataset)
@@ -125,35 +110,35 @@ splitData = function(dataset, p = 0.7) {
   return(list(train=train, test=test))
 }
 
-learn = function(dataset, MODEL, balance) {
+learn = function(dataset, MODEL, balance, target_vars) {
   logging.info(paste("Learning with method", MODEL))
 
   # build formula as Target=v1+v2+v3
-  formula = reformulate(variables, response = 'Target')
+  formula = as.formula(paste(paste(target_vars, collapse = " + "), paste(variables, collapse=" + "), sep=" ~ "))
 
   # dataset needs to be normalized for nn and svm
   if (MODEL == "nn" || MODEL == "svm") {
-    dataset = normalize(dataset)
+    dataset = normalize(dataset, target_vars)
   }
 
   # factorize the target so these model can work
   if (MODEL == "rforest" || MODEL == "dtree" || MODEL == "nbayes") {
-    dataset$Target <- as.factor(dataset$Target)
+    dataset[,target_vars] = lapply(dataset[,target_vars], as.factor)
     # TODO: bin the data
   }
 
-  nFolds = 10
+  nFolds = 1
   totalAccuracy = 0
   totalPrecision = 0
   totalRecall = 0
   totalF1 = 0
 
   for(i in 1:nFolds) {
-    splitted = splitData(dataset)
+    splitted <<- splitData(dataset)
     train = splitted$train
-    test = splitted$test
-    target = test$Target
-    test$Target <- NULL
+    test <<- splitted$test
+    target <<- test[,target_vars]
+    test = test[, !(names(test) %in% target_vars)]
 
     if (balance == TRUE) {
       print("Balancing: ")
@@ -167,6 +152,7 @@ learn = function(dataset, MODEL, balance) {
 
     prediction = NULL
     if (MODEL == "nn") {
+      print(formula)
       nn <- neuralnet(
         formula,
         data=train,
@@ -176,7 +162,7 @@ learn = function(dataset, MODEL, balance) {
       )
       prediction = compute(nn, test)
       prediction = prediction$net.result
-      plot(gar.fun('y',nn))
+      #plot(gar.fun('y',nn))
     }
 
     if (MODEL == "svm") {
@@ -209,42 +195,42 @@ learn = function(dataset, MODEL, balance) {
       prediction = factor(prediction)
     }
 
-
     # plot the roc curve and print the area under curve
-    # roc_obj <- roc(target, as.numeric(prediction))
-    # print(auc(roc_obj))
-    # plot(ggroc(roc_obj, legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
-
-
+    #roc_obj <- roc(target, as.numeric(prediction))
+    #print(auc(roc_obj))
+    #plot(ggroc(roc_obj, legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
     prediction = data.frame(prediction)
     if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes" && MODEL != "base") prediction = sapply(prediction, round, digits=0)
-    comparison = data.frame(target=target, prediction=prediction)
-    if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes" && MODEL != "base") comparison = sapply(comparison, round, digits=0)
-    comparison = data.frame(comparison)
-    u <- union(comparison$prediction, comparison$target)
-    confusionTable = table(factor(comparison$prediction, u), factor(comparison$target, u))
 
-    # stampa matrice di confusione
-    #print(confusionTable)
-
-    #logging.info(paste("Fold:", i))
-    computedConfMatrix = confusionMatrix(confusionTable, mode = "prec_recall")
-    totalAccuracy = totalAccuracy + computedConfMatrix$overall['Accuracy']
-    totalPrecision = totalPrecision + computedConfMatrix$byClass['Precision']
-    totalRecall = totalRecall + computedConfMatrix$byClass['Recall']
-    totalF1 = totalF1 + computedConfMatrix$byClass['F1']
-
-    #confusionDF = as.data.frame(confusionTable)
-    #print(confusionDF)
-    # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
-    #   geom_tile(aes(fill=Freq)) +
-    #   scale_x_discrete(name="Actual Class") +
-    #   scale_y_discrete(name="Predicted Class") +
-    #   geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1) +
-    #   #scale_fill_manual(values = c("red","green")) +
-    #   #scale_fill_gradient(breaks=seq(from=-.5, to=4, by=.2)) +
-    #   labs(fill="Frequency")
-    # show(p)
+    gpred <<- prediction
+    print(mean(target == prediction))
+    # build confusion matrix
+    # comparison <<- data.frame(target=target, prediction=prediction)
+    # if (MODEL != "dtree" && MODEL != "rforest" && MODEL != "nbayes" && MODEL != "base") comparison = sapply(comparison, round, digits=0)
+    # comparison <<- data.frame(comparison)
+    # u <- union(comparison$prediction[1], comparison$target[1])
+    # confusionTable = table(factor(comparison$prediction, u), factor(comparison$target, u))
+    # print(confusionTable)
+    #
+    # #logging.info(paste("Fold:", i))
+    # computedConfMatrix = confusionMatrix(confusionTable, mode = "prec_recall")
+    # totalAccuracy = totalAccuracy + computedConfMatrix$overall['Accuracy']
+    # totalPrecision = totalPrecision + computedConfMatrix$byClass['Precision']
+    # totalRecall = totalRecall + computedConfMatrix$byClass['Recall']
+    # totalF1 = totalF1 + computedConfMatrix$byClass['F1']
+    #
+    # #print(computedConfMatrix)
+    # confusionDF = as.data.frame(confusionTable)
+    # #print(confusionDF)
+    # # p = ggplot(confusionDF, aes(x=Var1, y=Var2)) +
+    # #   geom_tile(aes(fill=Freq)) +
+    # #   scale_x_discrete(name="Actual Class") +
+    # #   scale_y_discrete(name="Predicted Class") +
+    # #   geom_text(aes(label = sprintf("%1.0f", Freq)), vjust = 1) +
+    # #   #scale_fill_manual(values = c("red","green")) +
+    # #   #scale_fill_gradient(breaks=seq(from=-.5, to=4, by=.2)) +
+    # #   labs(fill="Frequency")
+    # # show(p)
   }
   print(paste("Average accuracy: ", totalAccuracy/nFolds))
   print(paste("Average Precision: ", totalPrecision/nFolds))
@@ -253,15 +239,15 @@ learn = function(dataset, MODEL, balance) {
 }
 
 main = function() {
-  methods = c("base")
+  methods = c("base", "nn", "nbayes", "svm", "rforest", "dtree")
   drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Chocolate", "Nicotine", "Caffeine", "Alcohol")
   for (drug in drugs) {
     cat(paste("\nDrug: ", drug))
-    dataset = loadDataset(drug)
+    dataset <<- loadDataset(drug)
     stripped_dataset = stripDataset(dataset, drug)
     for (method in methods){
       tryCatch({
-        learn(stripped_dataset, method, FALSE)
+        learn(stripped_dataset, method, FALSE, target)
       }, error = function(e) {
         print(e)
         logging.error(paste("Can't complete training with method", method))
@@ -270,8 +256,8 @@ main = function() {
   }
 }
 
-mainTwo = function(target, method, balance) {
+main = function(target, method, balance) {
   dataset <<- loadDataset(target)
   stripped_dataset <<- stripDataset(dataset, target)
-  learn(stripped_dataset, method, balance)
+  learn(stripped_dataset, method, balance, target)
 }
