@@ -2,8 +2,6 @@ source("R/config.R")
 source("R/logging.R")
 source("R/garfun.R")
 
-set.seed(1)
-
 library(readr)
 library(tidyr)
 library(dplyr)
@@ -20,12 +18,18 @@ library(ggplot2)
 library(caret)
 library(pROC)
 
+options(readr.num_columns = 0)
+
+
 variables = c("Age", "Gender", "Education", "CountryPP", "EstimatedIncome",
               "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity",
               "CannabisPrice", "CrackPrice", "CocainePrice", "EcstasyPrice"
               )
 #variables = c("Age", "Gender", "Education", "Country", "NScore", "AScore", "OScore", "EScore", "CScore", "SensationSeeking", "Impulsivity")
 #target = "Cocaine"
+
+current_drug = ""
+current_method = ""
 
 buildDataset = function() {
   if (!file.exists(DATASET_RAW)) {
@@ -47,8 +51,8 @@ buildDataset = function() {
   logging.info("Clean Dataset written")
 }
 
-loadDataset = function(target) {
-  if (!file.exists(DATASET)) {
+loadDataset = function(target = FALSE, forceBuild = FALSE) {
+  if (!file.exists(DATASET) || forceBuild) {
     logging.info("Clean dataset not found, building from raw...")
     buildDataset()
     logging.info("Clean dataset built and saved")
@@ -65,28 +69,30 @@ loadDataset = function(target) {
   dataset$Education <- as.factor(dataset$Education)
   dataset$Country <- as.factor(dataset$Country)
 
-  columns_to_factor = c("Alcohol","Amphet","Amyl","Benzos","Caffeine","Cannabis","Chocolate","Cocaine","Crack","Ecstasy","Heroin","Ketamine","Legal","LSD","Meth","Mushrooms","Nicotine","Semer","VSA")
-  for (column in columns_to_factor) {
+  columns_to_recode = c("Alcohol","Amphet","Amyl","Benzos","Caffeine","Cannabis","Chocolate","Cocaine","Crack","Ecstasy","Heroin","Ketamine","Legal","LSD","Meth","Mushrooms","Nicotine","Semer","VSA")
+
+  for (column in columns_to_recode) {
+    dataset[[paste(column, "_orig", sep="")]] = as.factor(dataset[[column]])
     dataset[[column]] = dataset[[column]] %>%
       dplyr::recode('CL0'=0, 'CL1'=0, .default=1)
   }
   logging.debug("Columns factorized")
 
   logging.info("Feature engineering")
-  drugs = c("Amphet","Amyl","Benzos","Cannabis","Cocaine","Crack","Ecstasy","Heroin","Ketamine","LSD","Meth","Mushrooms","Semer","VSA")
+  drugs = c("Amphet","Amyl","Benzos","Cannabis","Cocaine","Crack","Ecstasy","Heroin","Ketamine","LSD","Meth","Mushrooms","Nicotine","VSA")
   dataset$NOfDrugsUsed = rowSums(dataset[,drugs])
-  dataset$NOfOtherDrugsUsed = rowSums(dataset[,drugs[drugs!=target]])
   dataset$UsedAnyDrug = ifelse(dataset$NOfDrugsUsed > 0, 1, 0)
-  dataset$UsedAnyOtherDrug = ifelse(dataset$NOfOtherDrugsUsed > 0, 1, 0)
+
+  if(target != FALSE) {
+    dataset$NOfOtherDrugsUsed = rowSums(dataset[,drugs[drugs!=target]])
+    dataset$UsedAnyOtherDrug = ifelse(dataset$NOfOtherDrugsUsed > 0, 1, 0)
+  }
 
   drugPrices <<- fromJSON(file="data/drugprices.json")
-
   dataset$CannabisPrice = as.numeric(drugPrices[["Cannabis"]][dataset$Country])
   dataset$CocainePrice = as.numeric(drugPrices[["Cocaine"]][dataset$Country])
   dataset$CrackPrice = as.numeric(drugPrices[["Crack"]][dataset$Country])
   dataset$EcstasyPrice = as.numeric(drugPrices[["Ecstasy"]][dataset$Country])
-
-  engds <<- dataset
 
   logging.debug("Dataset engineered")
 
@@ -142,7 +148,7 @@ learn = function(dataset, MODEL, balance) {
     # TODO: bin the data
   }
 
-  nFolds = 1
+  nFolds = 10
   totalAccuracy = 0
   totalPrecision = 0
   totalRecall = 0
@@ -213,7 +219,9 @@ learn = function(dataset, MODEL, balance) {
     # plot the roc curve and print the area under curve
     # roc_obj <- roc(target, as.numeric(prediction))
     # print(auc(roc_obj))
-    # plot(ggroc(roc_obj, legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
+    # rs <- roc_obj[['rocs']]
+    # plot.roc(rs[[1]])
+    # plot(ggroc(rs[[1]], legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
 
 
     prediction = data.frame(prediction)
@@ -229,6 +237,7 @@ learn = function(dataset, MODEL, balance) {
 
     #logging.info(paste("Fold:", i))
     computedConfMatrix = confusionMatrix(confusionTable, mode = "prec_recall")
+    #print(computedConfMatrix)
     totalAccuracy = totalAccuracy + computedConfMatrix$overall['Accuracy']
     totalPrecision = totalPrecision + computedConfMatrix$byClass['Precision']
     totalRecall = totalRecall + computedConfMatrix$byClass['Recall']
@@ -246,20 +255,22 @@ learn = function(dataset, MODEL, balance) {
     #   labs(fill="Frequency")
     # show(p)
   }
-  print(paste("Average accuracy: ", totalAccuracy/nFolds))
-  print(paste("Average Precision: ", totalPrecision/nFolds))
-  print(paste("Average Recall: ", totalRecall/nFolds))
-  print(paste("F-measure: ", totalF1/nFolds))
+  print(paste(current_drug, current_method, totalAccuracy/nFolds, totalPrecision/nFolds, totalRecall/nFolds, totalF1/nFolds, sep=";"))
 }
 
+
 main = function() {
-  methods = c("base")
-  drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Chocolate", "Nicotine", "Caffeine", "Alcohol")
+  set.seed(1)
+  methods = c("base", "svm", "dtree", "nbayes", "rforest", "nn")
+  drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Nicotine", "Caffeine", "Alcohol")
+  print("Drug;Method;Accuracy;Precision;Recall;F1")
   for (drug in drugs) {
-    cat(paste("\nDrug: ", drug))
+    assign('current_drug', drug, envir = .GlobalEnv)
+    #cat(paste("\nDrug: ", drug))
     dataset = loadDataset(drug)
     stripped_dataset = stripDataset(dataset, drug)
     for (method in methods){
+      assign('current_method', method, envir = .GlobalEnv)
       tryCatch({
         learn(stripped_dataset, method, FALSE)
       }, error = function(e) {
@@ -271,6 +282,7 @@ main = function() {
 }
 
 mainTwo = function(target, method, balance) {
+  set.seed(1)
   dataset <<- loadDataset(target)
   stripped_dataset <<- stripDataset(dataset, target)
   learn(stripped_dataset, method, balance)

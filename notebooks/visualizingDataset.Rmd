@@ -11,7 +11,10 @@ knitr::opts_knit$set(root.dir = normalizePath(rootDir))
 ```{r setup include=FALSE}
 source("R/main.R")
 library(ggplot2)
-dataset = loadDataset()
+library(reshape2)
+dataset = loadDataset(target = FALSE, forceBuild = TRUE)
+drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Nicotine", "Caffeine", "Alcohol")
+drugs_orig = lapply(drugs, function(d) { paste(d, "_orig", sep="") })
 ```
 
 This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
@@ -50,15 +53,18 @@ ggplot(dataset, aes(x=Education)) +
 ```
 
 ```{r}
-ggplot(dataset, aes(x=NOfDrugsUsed)) +
-  geom_bar() +
+ggplot(dataset, aes(x=NOfDrugsUsed, fill=Gender)) +
+  geom_bar(fill="#4b869c") +
+  labs(y = "Count", x = "Number of drugs used") + 
   scale_x_continuous(breaks=0:15)
 ```
 
 ```{r}
-ggplot(dataset, aes(x=UsedAnyDrug)) +
-  geom_bar() +
-  scale_x_continuous(breaks=0:15)
+ggplot(dataset, aes(x=as.factor(UsedAnyDrug))) +
+  geom_bar(fill=c("#00c853", "#bf360c")) +
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5)) + 
+  labs(title = "Drug usage", y = "Count", x = "") + 
+  scale_x_discrete(labels=c("Never used drugs","Has used drugs"))
 ```
 
 Aggiungere anche per ogni droga.
@@ -81,7 +87,37 @@ The preview shows you a rendered HTML copy of the contents of the editor. Conseq
 
 
 ```{r}
-ggplot(dataset, aes(x=Heroin)) +
-  geom_bar() +
+#dataset.m <- melt(dataset, id=drugs)
+for(i in 1:length(drugs)) {
+  drug = drugs[i]
+  d_orig = paste(drug,"_orig", sep="")
+  p = ggplot(dataset, aes_string(x = d_orig)) +
+  geom_bar(fill="#4b869c") +
+  labs(title = paste(drug, "usage"), y = "Number of people", x = "") + 
+  geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5)) +
+  scale_x_discrete(labels = c('Never\nUsed', 'A Decade Ago','In Last Decade', 'In Last Year', 'In Last Month', 'In Last Week', 'In Last Day')) + 
   geom_text(stat='count', aes(label=..count..), position = position_stack(vjust = 0.5))
+  print(p)
+}
 ```
+
+```{r}
+library(ggcorrplot)
+library(polycor)
+ds2 = dataset
+# for (drug in drugs) {
+#     dataset[[drug]] = as.factor(dataset[[paste(drug, "_orig", sep="")]])
+# }
+#vs2 = variables[! variables %in% c("CannabisPrice", "CrackPrice", "CocainePrice", "EcstasyPrice")]
+corr <- hetcor(as.data.frame(ds2[,(names(ds2) %in% c(variables, drugs))]))
+ggcorrplot(corr$correlations, outline.col = "white", insig = "pch") +
+  theme(axis.text.x = element_text(size=10, angle=90, vjust=0.5), axis.text.y = element_text(size=10, vjust=0.5))  + 
+  labs(title = paste("Correlation Matrix"))
+```
+
+```{r}
+ggcorrplot(corr$correlations, outline.col = "white", insig = "pch", lab=TRUE) +
+  theme(axis.text.x = element_text(size=10, angle=90, vjust=0.5), axis.text.y = element_text(size=10, vjust=0.5))  + 
+  labs(title = paste("Correlation Matrix"))
+```
+

@@ -4,7 +4,7 @@ downloadDataset = function() {
 }
 
 setupPackages = function() {
-  packages = c("readr", "ggplot2", "pROC", "neuralnet", "dplyr", "tidyr", "viridis", "here", "e1071", "rpart", "rattle", "randomForest", "caret", "reshape", "pROC", "rjson")
+  packages = c("readr", "ggplot2", "pROC", "neuralnet", "dplyr", "tidyr", "viridis", "here", "e1071", "rpart", "rattle", "randomForest", "caret", "reshape", "pROC", "rjson", "ggcorrplot", "polycor")
   if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
     install.packages(setdiff(packages, rownames(installed.packages())))
   }
