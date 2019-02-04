@@ -162,6 +162,7 @@ learn = function(dataset, MODEL, balance, target_vars) {
       )
       prediction = compute(nn, test)
       prediction = prediction$net.result
+      plot(nn)
       #plot(gar.fun('y',nn))
     }
 
@@ -256,7 +257,7 @@ main = function() {
   }
 }
 
-main = function(target, method, balance) {
+mainTwo = function(target, method, balance) {
   dataset <<- loadDataset(target)
   stripped_dataset <<- stripDataset(dataset, target)
   learn(stripped_dataset, method, balance, target)

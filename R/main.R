@@ -96,6 +96,8 @@ loadDataset = function(target = FALSE, forceBuild = FALSE) {
 
   logging.debug("Dataset engineered")
 
+  dataset = dataset[sample(nrow(dataset)),]
+
   return(dataset)
 }
 
@@ -149,15 +151,25 @@ learn = function(dataset, MODEL, balance) {
   }
 
   nFolds = 10
+
   totalAccuracy = 0
   totalPrecision = 0
   totalRecall = 0
   totalF1 = 0
 
+  folds <- cut(seq(1,nrow(dataset)), breaks=nFolds, labels=FALSE)
+
   for(i in 1:nFolds) {
-    splitted = splitData(dataset)
-    train = splitted$train
-    test = splitted$test
+    if (nFolds == 1) {
+      splitted = splitData(dataset)
+      train = splitted$train
+      test = splitted$test
+    } else {
+      testIndexes = which(folds==i,arr.ind=TRUE)
+      test = dataset[testIndexes, ]
+      train = dataset[-testIndexes, ]
+    }
+
     target = test$Target
     test$Target <- NULL
 
@@ -172,22 +184,26 @@ learn = function(dataset, MODEL, balance) {
     }
 
     prediction = NULL
+
     if (MODEL == "nn") {
+
       nn <- neuralnet(
-        formula,
-        data=train,
-        hidden = c(ceiling(length(variables)/3)),
-        act.fct = "logistic",
-        linear.output=FALSE
+         formula,
+         data=train,
+         hidden = c(ceiling(length(variables)/3)),
+         act.fct = "logistic",
+         linear.output=FALSE
       )
       prediction = compute(nn, test)
       prediction = prediction$net.result
-      plot(gar.fun('y',nn))
+      #plot(nn)
+      #plot(gar.fun('y',nn))
     }
 
     if (MODEL == "svm") {
-      model_svm = svm(formula, train)
+      model_svm = svm(formula, data = train)
       prediction = predict(model_svm, test)
+      plot(model_svm, train)
     }
 
     if (MODEL == "dtree") {
@@ -217,11 +233,11 @@ learn = function(dataset, MODEL, balance) {
 
 
     # plot the roc curve and print the area under curve
-    # roc_obj <- roc(target, as.numeric(prediction))
-    # print(auc(roc_obj))
+    roc_obj <- roc(target, as.numeric(prediction))
+    #print(auc(roc_obj))
     # rs <- roc_obj[['rocs']]
     # plot.roc(rs[[1]])
-    # plot(ggroc(rs[[1]], legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
+    #plot(ggroc(roc_obj, legacy.axes=TRUE) + geom_abline(slope=1, intercept=0, color="red", linetype=3) + theme_bw())
 
 
     prediction = data.frame(prediction)
@@ -263,7 +279,7 @@ main = function() {
   set.seed(1)
   methods = c("base", "svm", "dtree", "nbayes", "rforest", "nn")
   drugs = c("Amphet", "Heroin", "Cannabis", "Cocaine", "Crack", "Nicotine", "Caffeine", "Alcohol")
-  print("Drug;Method;Accuracy;Precision;Recall;F1")
+  print("Drug;Method;Accuracy;Precision;Recal l;F1")
   for (drug in drugs) {
     assign('current_drug', drug, envir = .GlobalEnv)
     #cat(paste("\nDrug: ", drug))
