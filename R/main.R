@@ -150,14 +150,17 @@ learn = function(dataset, MODEL, balance) {
     # TODO: bin the data
   }
 
-  nFolds = 10
+  nFolds = 1
 
   totalAccuracy = 0
   totalPrecision = 0
   totalRecall = 0
   totalF1 = 0
 
-  folds <- cut(seq(1,nrow(dataset)), breaks=nFolds, labels=FALSE)
+  folds = NULL
+  if (nFolds != 1) {
+    folds = cut(seq(1,nrow(dataset)), breaks=nFolds, labels=FALSE)
+  }
 
   for(i in 1:nFolds) {
     if (nFolds == 1) {
